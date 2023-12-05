@@ -27,6 +27,12 @@
       "name": "day4.ts",
       "request": "launch",
       "type": "node-terminal"
+    },
+    {
+      "command": "pnpm tsx src/day5.ts",
+      "name": "day5.ts",
+      "request": "launch",
+      "type": "node-terminal"
     }
   ]
 }
