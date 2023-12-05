@@ -34,117 +34,148 @@ humidity-to-location map:
 60 56 37
 56 93 4`;
 
-interface SpreadMap {
-  type: string;
-  mapping: [number, number][];
+const $trim = (input: string): string => input.trim();
+
+interface Spread {
+  src: number;
+  dest: number;
+  range: number;
 }
+type SpreadMap = Spread[];
 
-const parseOneMap = (type: string, lines: string[], prev: number[]) => {
-  const max = prev.reduce((acc, cur) => (cur > acc ? cur : acc), 0);
-
-  const map: SpreadMap = {
-    type,
-    mapping: [],
-  };
-
-  for (let i = 0; i < max; i++) {
-    // flash fill
-    map.mapping.push([i, i]);
-  }
-
-  lines.shift(); // remove heading
-  while (lines[0] !== "" && lines.length > 0) {
-    const [dest, src, range] = lines.shift().split(" ").map(Number);
-
-    for (let j = 0; j < range; j++) {
-      map.mapping[src + j - 1] = [src + j, dest + j];
+const getNextLocation = (key: number, map: SpreadMap): number => {
+  for (const { src, dest, range } of map) {
+    const lX = src,
+      rX = src + range - 1;
+    if (key >= lX && key <= rX) {
+      return dest + (key - lX);
     }
   }
-  lines.shift(); // remove whitespace
+  return key;
+};
 
-  map.mapping.sort(([a], [b]) => a - b);
+type Input = string[];
+
+// return seeds, plus split lines
+const parseSeeds = (input: string): [number[], string[]] => {
+  const [seeds, ...lines] = input.split("\n").map($trim);
+
+  const seedNumbers = seeds.split(": ")[1].split(" ").map(Number);
+
+  lines.shift(); // removes extra newline
+
+  return [seedNumbers, lines];
+};
+
+const parseMap = (input: Input): SpreadMap => {
+  input.shift(); // removes header
+
+  const map: SpreadMap = [];
+
+  while (input.length > 0 && input[0] !== "") {
+    const [dest, src, range] = input.shift()!.split(" ").map(Number);
+    map.push({ src, dest, range });
+  }
 
   return map;
 };
 
-const common = async () => {
-  const lines = input.split("\n").map((line) => line.trim());
-  // const lines = (await getContents("https://adventofcode.com/2023/day/5/input"))
-  //   .split("\n")
-  //   .map((line) => line.trim());
+interface Types {
+  toSoil: SpreadMap;
+  toFertilizer: SpreadMap;
+  toWater: SpreadMap;
+  toLight: SpreadMap;
+  toTemperature: SpreadMap;
+  toHumidity: SpreadMap;
+  toLocation: SpreadMap;
+}
 
-  const seeds = lines.shift().split(" ").slice(1).map(Number);
-  lines.shift(); // remove whitespace
+const parse = (input: string): [number[], Types] => {
+  const [seeds, lines] = parseSeeds(input);
+  const maps: SpreadMap[] = [];
 
-  const seedToSoil = parseOneMap("seed-to-soil", lines, seeds);
-  const soilToFertilizer = parseOneMap(
-    "soil-to-fertilizer",
-    lines,
-    seedToSoil.mapping.map(([_, dest]) => dest)
-  );
-  const fertilizerToWater = parseOneMap(
-    "fertilizer-to-water",
-    lines,
-    soilToFertilizer.mapping.map(([_, dest]) => dest)
-  );
-  const waterToLight = parseOneMap(
-    "water-to-light",
-    lines,
-    fertilizerToWater.mapping.map(([_, dest]) => dest)
-  );
-  const lightToTemperature = parseOneMap(
-    "light-to-temperature",
-    lines,
-    waterToLight.mapping.map(([_, dest]) => dest)
-  );
-  const temperatureToHumidity = parseOneMap(
-    "temperature-to-humidity",
-    lines,
-    lightToTemperature.mapping.map(([_, dest]) => dest)
-  );
-  const humidityToLocation = parseOneMap(
-    "humidity-to-location",
-    lines,
-    temperatureToHumidity.mapping.map(([_, dest]) => dest)
-  );
+  while (lines.length > 0) {
+    maps.push(parseMap(lines));
+  }
 
-  return {
+  return [
     seeds,
-    seedToSoil: seedToSoil.mapping,
-    soilToFertilizer: soilToFertilizer.mapping,
-    fertilizerToWater: fertilizerToWater.mapping,
-    waterToLight: waterToLight.mapping,
-    lightToTemperature: lightToTemperature.mapping,
-    temperatureToHumidity: temperatureToHumidity.mapping,
-    humidityToLocation: humidityToLocation.mapping,
-  };
+    {
+      toSoil: maps[0],
+      toFertilizer: maps[1],
+      toWater: maps[2],
+      toLight: maps[3],
+      toTemperature: maps[4],
+      toHumidity: maps[5],
+      toLocation: maps[6],
+    },
+  ];
+};
+
+// actual code
+
+const commonSolution = (seeds: number[], types: Types) => {
+  const soil = seeds.map((seed) => getNextLocation(seed, types.toSoil));
+  const fertilizer = soil.map((soil) =>
+    getNextLocation(soil, types.toFertilizer)
+  );
+  const water = fertilizer.map((fertilizer) =>
+    getNextLocation(fertilizer, types.toWater)
+  );
+  const light = water.map((water) => getNextLocation(water, types.toLight));
+  const temperature = light.map((light) =>
+    getNextLocation(light, types.toTemperature)
+  );
+  const humidity = temperature.map((temperature) =>
+    getNextLocation(temperature, types.toHumidity)
+  );
+  const location = humidity.map((humidity) =>
+    getNextLocation(humidity, types.toLocation)
+  );
+
+  const min = Math.min(...location);
+  return min;
 };
 
 const part1 = async () => {
-  const data = await common();
+  const [seeds, types] = parse(
+    await getContents("https://adventofcode.com/2023/day/5/input")
+  );
 
-  let lowest = Infinity;
-  for (const seed of data.seeds) {
-    const soil = data.seedToSoil.find(([src]) => src === seed);
-    const fertilizer = data.soilToFertilizer.find(([src]) => src === soil[1]);
-    const water = data.fertilizerToWater.find(([src]) => src === fertilizer[1]);
-    const light = data.waterToLight.find(([src]) => src === water[1]);
-    const temperature = data.lightToTemperature.find(
-      ([src]) => src === light[1]
-    );
-    const humidity = data.temperatureToHumidity.find(
-      ([src]) => src === temperature[1]
-    );
-    const location = data.humidityToLocation.find(
-      ([src]) => src === humidity[1]
-    );
+  // this is the simple part
+  // because just 4 seeds (for part 1)
+  const min = commonSolution(seeds, types);
 
-    if (location[1] < lowest) {
-      lowest = location[1];
+  console.log(`Part 1: ${min}`);
+};
+
+const part2 = async () => {
+  const [initSeeds, types] = parse(
+    await getContents("https://adventofcode.com/2023/day/5/input")
+  );
+
+  const seedPairs: [number, number][] = initSeeds.reduce(
+    (acc: [number, number][], seed: number, index: number) => {
+      if (index % 2 === 0) {
+        acc.push([seed, initSeeds[index + 1]]);
+      }
+      return acc;
+    },
+    []
+  );
+
+  let min = Infinity;
+
+  for (const pair of seedPairs) {
+    for (let i = 0; i < pair[1]; i++) {
+      const seed = pair[0] + i;
+      const localMin = commonSolution([seed], types);
+      if (localMin < min) {
+        min = localMin;
+      }
     }
   }
-
-  console.log(`Part 1: ${lowest}`);
 };
 
 part1();
+part2();
