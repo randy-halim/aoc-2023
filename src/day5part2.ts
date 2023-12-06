@@ -36,6 +36,8 @@ const _solution = async () => {
   const input = await getContents("https://adventofcode.com/2023/day/5/input");
   const { seeds, spreads } = $parse($trim(input));
 
+  console.log(spreads);
+
   type $LookupMemo = Record<number, number>;
 
   const lookupMemo: $LookupMemo = {};
@@ -95,8 +97,6 @@ const _solution = async () => {
       return arr;
     })
     .filter((i) => $isValidSeed(i, seeds));
-
-  console.log(potentials);
 
   let min = Infinity;
   for (const potential of potentials) {
